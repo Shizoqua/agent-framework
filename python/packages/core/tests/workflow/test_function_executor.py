@@ -502,6 +502,27 @@ class TestFunctionExecutor:
         # The actual thread execution test would require a full workflow setup,
         # but the important thing is that asyncio.to_thread is used in the wrapper
 
+    async def test_sync_wrapper_returning_coroutine_is_awaited(self):
+        """A plain decorator around an async function returns a coroutine that must still run."""
+        import functools
+
+        def traced(func: Any) -> Any:
+            @functools.wraps(func)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                return func(*args, **kwargs)
+
+            return wrapper
+
+        @executor(id="shout")
+        @traced
+        async def shout(text: str, ctx: WorkflowContext[Any, str]) -> None:
+            await ctx.yield_output(text.upper())
+
+        workflow = WorkflowBuilder(start_executor=shout).build()
+        result = await workflow.run("hello")
+
+        assert result.get_outputs() == ["HELLO"]
+
     def test_executor_rejects_staticmethod(self):
         """Test that @executor decorator properly rejects @staticmethod with clear error."""
         with pytest.raises(ValueError) as exc_info:
