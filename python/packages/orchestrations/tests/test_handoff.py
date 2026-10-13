@@ -1361,6 +1361,29 @@ async def test_autonomous_mode_zero_turn_limit_returns_control_immediately():
     assert requests[0].source_executor_id == worker.name
 
 
+@pytest.mark.parametrize(
+    "autonomous_settings",
+    [
+        {"agents": ["Worker"]},
+        {"turn_limits": {"Worker": 2}},
+        {"prompts": {"Worker": "Keep going."}},
+    ],
+)
+def test_autonomous_mode_rejects_unknown_agent_names(autonomous_settings: dict[str, Any]) -> None:
+    """Names in the autonomous mode settings must match a participant, like start and handoff agents."""
+    triage = MockHandoffAgent(name="triage")
+    worker = MockHandoffAgent(name="worker")
+
+    builder = (
+        HandoffBuilder(participants=_as_handoff_agents(triage, worker))
+        .with_start_agent(_as_handoff_agent(triage))
+        .with_autonomous_mode(**autonomous_settings)
+    )
+
+    with pytest.raises(ValueError, match="'Worker'"):
+        builder.build()
+
+
 def test_build_fails_without_start_agent():
     """Verify that build() raises ValueError when with_start_agent() was not called."""
     triage = MockHandoffAgent(name="triage")

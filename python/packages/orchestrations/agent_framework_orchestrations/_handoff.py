@@ -1195,6 +1195,20 @@ class HandoffBuilder:
         """
         executors: dict[str, HandoffAgentExecutor] = {}
 
+        # Autonomous mode settings are keyed by agent name, so a name that matches no participant
+        # would silently leave that agent out of autonomous mode.
+        for setting, names in (
+            ("agents", self._autonomous_mode_enabled_agents),
+            ("turn_limits", self._autonomous_mode_turn_limits),
+            ("prompts", self._autonomous_mode_prompts),
+        ):
+            unknown = sorted(name for name in names if name not in agents)
+            if unknown:
+                raise ValueError(
+                    f"with_autonomous_mode({setting}=...) names agents that are not participants: "
+                    f"{', '.join(repr(name) for name in unknown)}. Participants: {', '.join(agents)}."
+                )
+
         for id, agent in agents.items():
             # Note that here `id` may be either factory name or agent resolved ID
             resolved_id = self._resolve_to_id(agent)
