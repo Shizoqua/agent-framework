@@ -735,9 +735,11 @@ class StandardMagenticManager(MagenticManagerBase):
 
         # Include full context to help the model decide current stage, with small retry loop
         attempts = 0
+        # Always ask at least once; a count of 0 means no retries, not no request at all.
+        max_attempts = max(1, self.progress_ledger_retry_count)
         last_error: Exception | None = None
         unknown_speaker_ledger: MagenticProgressLedger | None = None
-        while attempts < self.progress_ledger_retry_count:
+        while attempts < max_attempts:
             raw = await self._complete([*magentic_context.chat_history, user_message])
             try:
                 ledger_dict = _extract_json(raw.text)
@@ -758,18 +760,14 @@ class StandardMagenticManager(MagenticManagerBase):
                 unknown_speaker_ledger = ledger
                 last_error = ValueError(f"Unknown next speaker '{next_speaker}'. Valid names: {names_csv}.")
             attempts += 1
-            logger.warning(
-                f"Progress ledger attempt failed ({attempts}/{self.progress_ledger_retry_count}): {last_error}"
-            )
-            if attempts < self.progress_ledger_retry_count:
+            logger.warning(f"Progress ledger attempt failed ({attempts}/{max_attempts}): {last_error}")
+            if attempts < max_attempts:
                 # brief backoff before next try
                 await asyncio.sleep(0.25 * attempts)
 
         if unknown_speaker_ledger is not None:
             return unknown_speaker_ledger
-        raise RuntimeError(
-            f"Progress ledger parse failed after {self.progress_ledger_retry_count} attempt(s): {last_error}"
-        )
+        raise RuntimeError(f"Progress ledger parse failed after {max_attempts} attempt(s): {last_error}")
 
     async def prepare_final_answer(self, magentic_context: MagenticContext) -> Message:
         """Ask the model to produce the final answer addressed to the user."""
